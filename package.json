@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "run": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@types/node": "^14.14.41",
+    "discord.js": "^12.5.3",
+    "dotenv": "^8.2.0"
+  }
+}
