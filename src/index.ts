@@ -11,7 +11,6 @@ import WelcomeGift from "./WelcomeGift"
 const client = new Discord.Client()
 
 client.on("guildMemberAdd", async (member) => {
-  console.log("Member joined", member)
   const storedMember = await db.getMemberInfo(member.id)
 
   if (!storedMember) { // We have a new member!
@@ -119,10 +118,22 @@ client.on("message", async (message) => {
   }
 })
 
+const serverId = "830039917341835295"
+const roles = {
+  puzzler: "836205423455371295",
+  member: "837453599302090803"
+}
+const channels = {
+  rules: "836203001991397378"
+}
+const messages = {
+  acceptRules: "837450386401919037"
+}
+
 async function givePuzzlerRole(user: Discord.User, puzzlesSolved: number) {
-  const server = await client.guilds.fetch("830039917341835295")
+  const server = await client.guilds.fetch(serverId)
   const member = await server.members.fetch(user)
-  const puzzlerRole = await server.roles.fetch("836205423455371295")
+  const puzzlerRole = await server.roles.fetch(roles.puzzler)
 
   if (member && puzzlerRole) {
     member.roles.add(puzzlerRole)
@@ -139,8 +150,53 @@ const puzzleSolvedMessage = (author: Discord.User): Discord.MessageEmbedOptions 
   }
 }
 
+client.on("messageReactionAdd", async (reaction, user) => {
+  if (user instanceof Discord.User && reaction.message.id === messages.acceptRules && reaction.emoji.name === "✅") { // Accept rules
+    try {
+      const server = await client.guilds.fetch(serverId)
+      const member = await server.members.fetch(user)
+      const memberRole = await server.roles.fetch(roles.member)
+
+      if (member && memberRole) {
+        await member.roles.add(memberRole)
+      } else {
+        console.log("Member", member)
+        console.log("Role", memberRole)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+})
+
+client.on("messageReactionRemove", async (reaction, user) => {
+  if (user instanceof Discord.User && reaction.message.id === messages.acceptRules && reaction.emoji.name === "✅") { // Unaccept rules
+    try {
+      const server = await client.guilds.fetch(serverId)
+      const member = await server.members.fetch(user)
+      const memberRole = await server.roles.fetch(roles.member)
+
+      if (member && memberRole) {
+        await member.roles.remove(memberRole)
+      } else {
+        console.log("Member", member)
+        console.log("Role", memberRole)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+})
+
+async function cacheImportantMessages() {
+  const server = await client.guilds.fetch(serverId)
+  const rulesChannel = await client.channels.fetch(channels.rules) as Discord.TextChannel
+  const rulesMessage = await rulesChannel.messages.fetch(messages.acceptRules)
+}
 
 client.on("ready", async () => {
+  await cacheImportantMessages()
+
   console.log("Discord client is ready")
 })
 
