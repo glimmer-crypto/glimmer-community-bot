@@ -1,25 +1,23 @@
+import "./load-env"
 import type { Client } from "@replit/database"
 
 const dbClient: Client = new (require("@replit/database"))()
-const cache: Record<string, unknown> = {}
+const cache: dbTypes = {}
 
-interface PuzzleData {
-  answerHash: string
+type dbTypes = {
+  "welcome_gift_puzzles"?: Record<string, string>
+  "welcome_gifts"?: db.WelcomeGift[]
+  "ongoing_puzzle"?: db.PuzzleData
+
+  [otherKey: string]: unknown
 }
 
-interface StoredMember {
-  puzzlesSolved: number
-  initialPuzzleHash?: string
-}
-
-export async function get(key: "ongoing_puzzle"): Promise<PuzzleData | null>
-export async function get(key: string): Promise<Record<string, StoredMember>>
-export async function get(key: string): Promise<unknown> {
+export async function get<Key extends keyof dbTypes & string>(key: Key): Promise<dbTypes[Key]> {
   let value = cache[key]
   if (value) {
     return value
   } else {
-    value = await dbClient.get(key)
+    value = await dbClient.get(key) as dbTypes[Key]
     cache[key] = value
 
     if (key.startsWith("members_")) {
@@ -29,11 +27,9 @@ export async function get(key: string): Promise<unknown> {
   }
 }
 
-export async function set(key: "ongoing_puzzle", value: PuzzleData): Promise<void>
-export async function set(key: string, value: any): Promise<void>
-export async function set(key: string, value: any) {
+export async function set<Key extends keyof dbTypes & string>(key: Key, value: dbTypes[Key]) {
   cache[key] = value
-  
+
   if (value === null || value === undefined) {
     await dbClient.delete(key)
   } else {
@@ -41,16 +37,16 @@ export async function set(key: string, value: any) {
   }
 }
 
-export async function setMemberInfo(id: string, value: StoredMember) {
-  const dbKey = "member_" + id.slice(0, 3)
-  const members = await get(dbKey)
-  members[id.slice(3, 0)] = value
+export async function setMemberInfo(id: string, value: db.Member) {
+  const dbKey = "members_" + id.slice(0, 3)
+  const members = await get(dbKey) as Record<string, db.Member> ?? {}
+  members[id.slice(3)] = value
   await set(dbKey, members)
 }
 
-export async function getMemberInfo(id: string): Promise<StoredMember | null> {
-  const members = await get("member_" + id.slice(0, 3))
-  return members[id.slice(3, 0)]
+export async function getMemberInfo(id: string): Promise<db.Member | null> {
+  const members = await get("members_" + id.slice(0, 3)) as Record<string, db.Member> | null
+  return members?.[id.slice(3)] ?? null
 }
 
 export async function deleteItem(key: string) {
@@ -59,7 +55,29 @@ export async function deleteItem(key: string) {
 }
 
 const db = {
-  get, set, deleteItem, getMemberInfo, setMemberInfo
+  get, set, deleteItem, getMemberInfo, setMemberInfo, client: dbClient
+}
+
+namespace db {
+  export interface PuzzleData {
+    answerHash: string,
+    solvers: Record<string, true>
+  }
+  
+  export interface Member {
+    puzzlesSolved: number
+    initialPuzzleHash?: string
+  }
+
+  export interface WelcomeGift {
+    wallet: {
+      publicAddress: string
+      privateKey: string
+      salt: string
+    }
+    amount: number
+    passwordHash: string
+  }
 }
 
 export default db
