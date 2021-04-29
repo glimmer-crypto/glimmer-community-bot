@@ -72,16 +72,7 @@ client.on("message", async (message) => {
           db.setMemberInfo(author.id, storedMember)
 
           try {
-            const server = await client.guilds.fetch("830039917341835295")
-            const member = await server.members.fetch(author)
-            const puzzlerRole = await server.roles.fetch("836205423455371295")
-
-            if (member && puzzlerRole) {
-              member.roles.add(puzzlerRole)
-            } else {
-              console.log("Member", member)
-              console.log("Role", puzzlerRole)
-            }
+            givePuzzlerRole(author, storedMember.puzzlesSolved)
 
             channel.send(new Discord.MessageEmbed({
               title: "Well done",
@@ -99,17 +90,23 @@ client.on("message", async (message) => {
   
           ongoingPuzzle.solvers[author.id] = true
 
-          if (Object.keys(ongoingPuzzle.solvers).length >= 5) {
+          if (Object.keys(ongoingPuzzle.solvers).length >= 10) {
             await db.deleteItem("ongoing_puzzle")
           } else {
             await db.set("ongoing_puzzle", ongoingPuzzle)
           }
 
           await db.setMemberInfo(author.id, storedMember)
-          
+
           channel.send(
             new Discord.MessageEmbed(puzzleSolvedMessage(author))
           )
+
+          try {
+            await givePuzzlerRole(author, storedMember.puzzlesSolved)
+          } catch (err) {
+            // Ignore error
+          }
         }
       }
     }
@@ -121,6 +118,19 @@ client.on("message", async (message) => {
     parseSudoCommand(message)
   }
 })
+
+async function givePuzzlerRole(user: Discord.User, puzzlesSolved: number) {
+  const server = await client.guilds.fetch("830039917341835295")
+  const member = await server.members.fetch(user)
+  const puzzlerRole = await server.roles.fetch("836205423455371295")
+
+  if (member && puzzlerRole) {
+    member.roles.add(puzzlerRole)
+  } else {
+    console.log("Member", member)
+    console.log("Role", puzzlerRole)
+  }
+}
 
 const puzzleSolvedMessage = (author: Discord.User): Discord.MessageEmbedOptions => {
   return {
