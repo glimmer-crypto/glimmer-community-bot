@@ -13,8 +13,12 @@ const client = new Discord.Client()
 const server = {
   id: "830039917341835295",
   roles: {
+    member: "837453599302090803",
+
     puzzler: "836205423455371295",
-    member: "837453599302090803"
+    experiencedPuzzler: "837761050244808724",
+    elitePuzzler: "837762084162895922",
+    legendaryPuzzler: "837762304841875506"
   },
   channels: {
     rules: "836203001991397378",
@@ -22,7 +26,8 @@ const server = {
   },
   messages: {
     acceptRules: "837450386401919037"
-  }
+  },
+  owner: "830039282399969290"
 }
 
 async function addMember(user: Discord.User) {
@@ -108,7 +113,13 @@ async function removeRole(user: Discord.User | Discord.GuildMember, roleId: stri
 }
 
 async function givePuzzlerRole(user: Discord.User, puzzlesSolved: number) {
-  if (puzzlesSolved > 1) {
+  if (puzzlesSolved > 50) {
+    giveRole(user, server.roles.legendaryPuzzler)
+  } else if (puzzlesSolved > 20) {
+    giveRole(user, server.roles.elitePuzzler)
+  } else if (puzzlesSolved > 5) {
+    giveRole(user, server.roles.experiencedPuzzler)
+  } else if (puzzlesSolved > 0) {
     giveRole(user, server.roles.puzzler)
   }
 }
@@ -124,7 +135,7 @@ client.on("message", async (message) => {
   const { content, author, channel } = message
   if (author.bot) return // Ignore bot messages
 
-  if (channel.type === "dm" && message.author.id !== "830039282399969290") {
+  if (channel.type === "dm" && message.author.id !== server.owner) {
     if (content.length > 256 || content.length < 3) return
 
     const storedMember = await db.getMemberInfo(author.id)
@@ -181,7 +192,7 @@ client.on("message", async (message) => {
     // Ignore messages that don't start with `.`
   } else if (content.toLowerCase() === ".ping") {
     message.channel.send("pong")
-  } else if (message.author.id === "830039282399969290") {
+  } else if (message.author.id === server.owner) {
     parseSudoCommand(message)
   }
 })
