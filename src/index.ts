@@ -5,26 +5,46 @@ import * as Discord from "discord.js"
 
 import db from "./Database"
 import parseSudoCommand from "./SudoCommands"
-import { sha256, amountString } from "./utils"
+import { sha256, amountString, ordinalNumber } from "./utils"
 import WelcomeGift from "./WelcomeGift"
 
 const client = new Discord.Client()
 
-client.on("guildMemberAdd", async (member) => {
-  const storedMember = await db.getMemberInfo(member.id)
+const server = {
+  id: "830039917341835295",
+  roles: {
+    puzzler: "836205423455371295",
+    member: "837453599302090803"
+  },
+  channels: {
+    rules: "836203001991397378",
+    welcome: "837746639966961764"
+  },
+  messages: {
+    acceptRules: "837450386401919037"
+  }
+}
+
+async function addMember(user: Discord.User) {
+  await giveRole(user, server.roles.member)
+  const storedMember = await db.getMemberInfo(user.id)
 
   if (!storedMember) { // We have a new member!
-    const giftWallet = await sendGift(member)
+    const memberNum = await db.increment("member_count")
+    const welcome = await client.channels.fetch(server.channels.welcome) as Discord.TextChannel
+    welcome.send(`Welcome <@${user.id}> you are the **${ordinalNumber(memberNum)}** person to join the community`)
 
-    db.setMemberInfo(member.id, {
+    const giftWallet = await sendGift(user)
+
+    db.setMemberInfo(user.id, {
       puzzlesSolved: 0,
       initialPuzzleHash: giftWallet?.passwordHash
     })
   }
-})
+}
 
-async function sendGift(member: Discord.GuildMember) {
-  const dm = await member.createDM()
+async function sendGift(user: Discord.User) {
+  const dm = await user.createDM()
 
   let giftWallet: db.WelcomeGift | null = null
   let giftPuzzle: string | null = null
@@ -44,13 +64,61 @@ async function sendGift(member: Discord.GuildMember) {
   giftText = "```" + giftText + "```"
 
   dm.send(new Discord.MessageEmbed({
-    title: `Welcome to the Glimmer Community ${member.displayName}`,
+    title: `Welcome to the Glimmer Community ${user.username}`,
     description: `Your welcome gift is below. [More information](https://discord.com/channels/830039917341835295/836205213576724500)\n\n\n${giftText}`
   }))
 
   return giftWallet
 }
 
+async function giveRole(user: Discord.User | Discord.GuildMember, roleId: string): Promise<boolean> {
+  try {
+    const guild = await client.guilds.fetch(server.id)
+    const member = await guild.members.fetch(user)
+    const role = await guild.roles.fetch(roleId)
+
+    if (member && role) {
+      await member.roles.add(role)
+      return true
+    } else {
+      return false
+    }
+  } catch (err) {
+    console.error(err)
+    return false
+  }
+}
+
+async function removeRole(user: Discord.User | Discord.GuildMember, roleId: string): Promise<boolean> {
+  try {
+    const guild = await client.guilds.fetch(server.id)
+    const member = await guild.members.fetch(user)
+    const role = await guild.roles.fetch(roleId)
+
+    if (member && role) {
+      await member.roles.remove(role)
+      return true
+    } else {
+      return false
+    }
+  } catch (err) {
+    console.error(err)
+    return false
+  }
+}
+
+async function givePuzzlerRole(user: Discord.User, puzzlesSolved: number) {
+  if (puzzlesSolved > 1) {
+    giveRole(user, server.roles.puzzler)
+  }
+}
+
+const puzzleSolvedMessage = (author: Discord.User): Discord.MessageEmbedOptions => {
+  return {
+    title: `Well done ${author.username}!`,
+    description: "You sucessfully solved the puzzle. To claim your reward follow the instructions located [here](https://discord.com/channels/830039917341835295/836205213576724500)"
+  }
+}
 
 client.on("message", async (message) => {
   const { content, author, channel } = message
@@ -118,80 +186,22 @@ client.on("message", async (message) => {
   }
 })
 
-const serverId = "830039917341835295"
-const roles = {
-  puzzler: "836205423455371295",
-  member: "837453599302090803"
-}
-const channels = {
-  rules: "836203001991397378"
-}
-const messages = {
-  acceptRules: "837450386401919037"
-}
-
-async function givePuzzlerRole(user: Discord.User, puzzlesSolved: number) {
-  const server = await client.guilds.fetch(serverId)
-  const member = await server.members.fetch(user)
-  const puzzlerRole = await server.roles.fetch(roles.puzzler)
-
-  if (member && puzzlerRole) {
-    member.roles.add(puzzlerRole)
-  } else {
-    console.log("Member", member)
-    console.log("Role", puzzlerRole)
-  }
-}
-
-const puzzleSolvedMessage = (author: Discord.User): Discord.MessageEmbedOptions => {
-  return {
-    title: `Well done ${author.username}!`,
-    description: "You sucessfully solved the puzzle. To claim your reward follow the directions located [here](https://discord.com/channels/830039917341835295/836205213576724500)"
-  }
-}
-
 client.on("messageReactionAdd", async (reaction, user) => {
-  if (user instanceof Discord.User && reaction.message.id === messages.acceptRules && reaction.emoji.name === "✅") { // Accept rules
-    try {
-      const server = await client.guilds.fetch(serverId)
-      const member = await server.members.fetch(user)
-      const memberRole = await server.roles.fetch(roles.member)
-
-      if (member && memberRole) {
-        await member.roles.add(memberRole)
-      } else {
-        console.log("Member", member)
-        console.log("Role", memberRole)
-      }
-    } catch (err) {
-      console.error(err)
-    }
+  if (user instanceof Discord.User && reaction.message.id === server.messages.acceptRules && reaction.emoji.name === "✅") { // Accept rules
+    addMember(user)
   }
 })
 
 client.on("messageReactionRemove", async (reaction, user) => {
-  if (user instanceof Discord.User && reaction.message.id === messages.acceptRules && reaction.emoji.name === "✅") { // Unaccept rules
-    try {
-      const server = await client.guilds.fetch(serverId)
-      const member = await server.members.fetch(user)
-      const memberRole = await server.roles.fetch(roles.member)
-
-      if (member && memberRole) {
-        await member.roles.remove(memberRole)
-      } else {
-        console.log("Member", member)
-        console.log("Role", memberRole)
-      }
-    } catch (err) {
-      console.error(err)
-    }
+  if (user instanceof Discord.User && reaction.message.id === server.messages.acceptRules && reaction.emoji.name === "✅") { // Unaccept rules
+    removeRole(user, server.roles.member)
   }
 })
 
 async function cacheImportantMessages() {
-  const server = await client.guilds.fetch(serverId)
-  const rulesChannel = await client.channels.fetch(channels.rules) as Discord.TextChannel
-  const rulesMessage = await rulesChannel.messages.fetch(messages.acceptRules)
+  const guild = await client.guilds.fetch(server.id)
+  const rulesChannel = await client.channels.fetch(server.channels.rules) as Discord.TextChannel
+  const rulesMessage = await rulesChannel.messages.fetch(server.messages.acceptRules)
 }
 
 client.on("ready", async () => {

@@ -45,3 +45,20 @@ export function amountString(amount) {
 
   return major + "." + minor
 }
+
+export function ordinalNumber(num: number): string {
+  let ordinalSuffix = "th"
+  const lastTwoDigits = num % 100
+  if (lastTwoDigits < 10 || lastTwoDigits > 20) {
+    const lastDigit = num % 10
+    if (lastDigit === 1) {
+      ordinalSuffix = "st"
+    } else if (lastDigit === 2) {
+      ordinalSuffix = "nd"
+    } else if (lastDigit === 3) {
+      ordinalSuffix = "rd"
+    }
+  }
+
+  return num.toLocaleString() + ordinalSuffix
+}

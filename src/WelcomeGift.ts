@@ -14,7 +14,7 @@ const WelcomeGift = {
     const puzzles = await db.get("welcome_gift_puzzles") ?? {}
     return puzzles[gift.passwordHash]
   },
-  async addWallet(wallet: { publicAddress: string, privateKey: string, salt: string }, password: string, amount: number) {
+  async addWallet(wallet: db.Wallet, password: string, amount: number) {
     const passwordHash = sha256(password)
     const puzzles = await db.get("welcome_gift_puzzles") ?? {}
     if (!puzzles[passwordHash]) {

@@ -8,6 +8,7 @@ type dbTypes = {
   "welcome_gift_puzzles"?: Record<string, string>
   "welcome_gifts"?: db.WelcomeGift[]
   "ongoing_puzzle"?: db.PuzzleData
+  "members_count"?: number
 
   [otherKey: string]: unknown
 }
@@ -38,15 +39,15 @@ export async function set<Key extends keyof dbTypes & string>(key: Key, value: d
 }
 
 export async function setMemberInfo(id: string, value: db.Member) {
-  const dbKey = "members_" + id.slice(0, 3)
+  const dbKey = "members_" + id.slice(-3)
   const members = await get(dbKey) as Record<string, db.Member> ?? {}
-  members[id.slice(3)] = value
+  members[id.slice(0, -3)] = value
   await set(dbKey, members)
 }
 
 export async function getMemberInfo(id: string): Promise<db.Member | null> {
-  const members = await get("members_" + id.slice(0, 3)) as Record<string, db.Member> | null
-  return members?.[id.slice(3)] ?? null
+  const members = await get("members_" + id.slice(-3)) as Record<string, db.Member> | null
+  return members?.[id.slice(0, -3)] ?? null
 }
 
 export async function deleteItem(key: string) {
@@ -54,8 +55,21 @@ export async function deleteItem(key: string) {
   await dbClient.delete(key)
 }
 
+export async function increment(key: string, amount = 1) {
+  const value = await get(key)
+  if (!value) {
+    await set(key, amount)
+    return amount
+  } else {
+    const newVal = (cache[key] as number) += amount
+    await set(key, cache[key])
+
+    return newVal
+  }
+}
+
 const db = {
-  get, set, deleteItem, getMemberInfo, setMemberInfo, client: dbClient
+  get, set, deleteItem, getMemberInfo, setMemberInfo, increment, client: dbClient
 }
 
 namespace db {
@@ -69,12 +83,15 @@ namespace db {
     initialPuzzleHash?: string
   }
 
+  export interface Wallet {
+    publicAddress: string
+    privateKey: string
+    salt: string,
+    iterations: number
+  }
+
   export interface WelcomeGift {
-    wallet: {
-      publicAddress: string
-      privateKey: string
-      salt: string
-    }
+    wallet: Wallet
     amount: number
     passwordHash: string
   }
