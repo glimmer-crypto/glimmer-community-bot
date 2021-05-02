@@ -165,7 +165,7 @@ client.on("message", async (message) => {
             givePuzzlerRole(author, storedMember.puzzlesSolved)
 
             channel.send(new Discord.MessageEmbed({
-              title: "Well done",
+              title: `Well done ${author.username}`,
               description: "You sucessfully solved the puzzle. To claim your reward follow the directions located [here](https://discord.com/channels/830039917341835295/836205213576724500). You have additionally been granted the `Puzzler` role."
             }))
           } catch (err) {
@@ -202,10 +202,15 @@ client.on("message", async (message) => {
 
           await db.setMemberInfo(author.id, storedMember)
 
+          let message = `You were the ${ordinalNumber(solvers.length)} to sucessfully solve the puzzle.`
+          if (solvers.length === 1) {
+            message += "To claim your reward follow the instructions located [here](https://discord.com/channels/830039917341835295/836205213576724500)"
+          }
+
           channel.send(
             new Discord.MessageEmbed({
-              title: `Well done ${author.username}!`,
-              description: "You sucessfully solved the puzzle. To claim your reward follow the instructions located [here](https://discord.com/channels/830039917341835295/836205213576724500)"
+              title: `Well done ${author.username}`,
+              description: message
             })
           )
 
