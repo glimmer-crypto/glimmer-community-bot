@@ -15,17 +15,18 @@ const server = {
   roles: {
     member: "837453599302090803",
 
-    puzzler: "836205423455371295",
-    experiencedPuzzler: "837761050244808724",
-    elitePuzzler: "837762084162895922",
-    legendaryPuzzler: "837762304841875506"
+    "Puzzler": "836205423455371295",
+    "Experienced Puzzler": "837761050244808724",
+    "Elite Puzzler": "837762084162895922",
+    "Legendary Puzzler": "837762304841875506"
   },
   channels: {
     rules: "836203001991397378",
-    welcome: "837746639966961764"
+    welcome: "837746639966961764",
+    puzzleAnnouncements: "836200805416828928"
   },
   messages: {
-    acceptRules: "837450386401919037"
+    rules: "837450386401919037"
   },
   owner: "830039282399969290"
 }
@@ -112,15 +113,26 @@ async function removeRole(user: Discord.User | Discord.GuildMember, roleId: stri
   }
 }
 
+const ranks = {
+  "Legendary Puzzler": 51,
+  "Elite Puzzler": 21,
+  "Experienced Puzzler": 6,
+  "Puzzler": 1
+}
+type rankName = (keyof typeof ranks)
+const rankNames = Object.keys(ranks) as rankName[]
+
+function rankName(puzzlesSolved: number): rankName | undefined {
+  for (const rank of rankNames) {
+    if (puzzlesSolved >= ranks[rank]) {
+      return rank
+    }
+  }
+}
 async function givePuzzlerRole(user: Discord.User, puzzlesSolved: number) {
-  if (puzzlesSolved > 50) {
-    giveRole(user, server.roles.legendaryPuzzler)
-  } else if (puzzlesSolved > 20) {
-    giveRole(user, server.roles.elitePuzzler)
-  } else if (puzzlesSolved > 5) {
-    giveRole(user, server.roles.experiencedPuzzler)
-  } else if (puzzlesSolved > 0) {
-    giveRole(user, server.roles.puzzler)
+  const rank = rankName(puzzlesSolved)
+  if (rank) {
+    giveRole(user, server.roles[rank])
   }
 }
 
@@ -163,13 +175,27 @@ client.on("message", async (message) => {
         }
       } else {
         const ongoingPuzzle = await db.get("ongoing_puzzle")
-        if (ongoingPuzzle && !ongoingPuzzle.solvers[author.id] && sha256(content) === ongoingPuzzle.answerHash) {
+        if (ongoingPuzzle && !ongoingPuzzle.solvers.includes(author.id) && sha256(content) === ongoingPuzzle.answerHash) {
           storedMember.puzzlesSolved += 1
-  
-          ongoingPuzzle.solvers[author.id] = true
 
-          if (Object.keys(ongoingPuzzle.solvers).length >= 10) {
+          const { solvers } = ongoingPuzzle
+          solvers.push(author.id)
+
+          if (solvers.length >= 5) {
             await db.deleteItem("ongoing_puzzle")
+
+            const announcementChannel = await client.channels.fetch(server.channels.puzzleAnnouncements) as Discord.TextChannel
+            await announcementChannel.send("**Solved**\n" + solvers.map((user, i) => `${i + 1}. <@${user}>`).join("\n"))
+
+            for (const user of solvers) {
+              const userData = await db.getMemberInfo(user)
+              if (!userData) { continue }
+
+              const rank = rankName(userData?.puzzlesSolved)
+              if (rank !== "Puzzler") {
+                await announcementChannel.send(`<@${user}> achieved the rank **${rank}**`)
+              }
+            }
           } else {
             await db.set("ongoing_puzzle", ongoingPuzzle)
           }
@@ -177,7 +203,10 @@ client.on("message", async (message) => {
           await db.setMemberInfo(author.id, storedMember)
 
           channel.send(
-            new Discord.MessageEmbed(puzzleSolvedMessage(author))
+            new Discord.MessageEmbed({
+              title: `Well done ${author.username}!`,
+              description: "You sucessfully solved the puzzle. To claim your reward follow the instructions located [here](https://discord.com/channels/830039917341835295/836205213576724500)"
+            })
           )
 
           try {
@@ -198,13 +227,13 @@ client.on("message", async (message) => {
 })
 
 client.on("messageReactionAdd", async (reaction, user) => {
-  if (user instanceof Discord.User && reaction.message.id === server.messages.acceptRules && reaction.emoji.name === "✅") { // Accept rules
+  if (user instanceof Discord.User && reaction.message.id === server.messages.rules && reaction.emoji.name === "✅") { // Accept rules
     addMember(user)
   }
 })
 
 client.on("messageReactionRemove", async (reaction, user) => {
-  if (user instanceof Discord.User && reaction.message.id === server.messages.acceptRules && reaction.emoji.name === "✅") { // Unaccept rules
+  if (user instanceof Discord.User && reaction.message.id === server.messages.rules && reaction.emoji.name === "✅") { // Unaccept rules
     removeRole(user, server.roles.member)
   }
 })
@@ -212,7 +241,7 @@ client.on("messageReactionRemove", async (reaction, user) => {
 async function cacheImportantMessages() {
   const guild = await client.guilds.fetch(server.id)
   const rulesChannel = await client.channels.fetch(server.channels.rules) as Discord.TextChannel
-  const rulesMessage = await rulesChannel.messages.fetch(server.messages.acceptRules)
+  const rulesMessage = await rulesChannel.messages.fetch(server.messages.rules)
 }
 
 client.on("ready", async () => {

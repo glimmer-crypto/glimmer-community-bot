@@ -20,7 +20,7 @@ const SudoCommands: Commands = {
     } else {
       db.set("ongoing_puzzle", {
         answerHash: sha256(answer),
-        solvers: {}
+        solvers: []
       })
       return "A new puzzle has been set up"
     }

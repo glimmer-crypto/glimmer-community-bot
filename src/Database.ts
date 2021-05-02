@@ -8,7 +8,7 @@ type dbTypes = {
   "welcome_gift_puzzles"?: Record<string, string>
   "welcome_gifts"?: db.WelcomeGift[]
   "ongoing_puzzle"?: db.PuzzleData
-  "members_count"?: number
+  "member_count"?: number
 
   [otherKey: string]: unknown
 }
@@ -75,7 +75,7 @@ const db = {
 namespace db {
   export interface PuzzleData {
     answerHash: string,
-    solvers: Record<string, true>
+    solvers: string[]
   }
   
   export interface Member {
